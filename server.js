@@ -1,3 +1,4 @@
+// server.js
 const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
@@ -6,9 +7,9 @@ const app = express();
 app.use(cors());
 app.use(bodyParser.json());
 
-// Simple database (replace with real DB in production)
+// In-memory storage (replace with database in production)
 let announcements = [];
-let adminKey = process.env.ADMIN_KEY || "secretsex9";
+const ADMIN_KEY = process.env.ADMIN_KEY || "nigger233";
 
 // Get all announcements
 app.get('/announcements', (req, res) => {
@@ -17,7 +18,7 @@ app.get('/announcements', (req, res) => {
 
 // Create new announcement
 app.post('/announcements', (req, res) => {
-    if (req.headers['x-admin-key'] !== adminKey) {
+    if (req.headers['x-admin-key'] !== ADMIN_KEY) {
         return res.status(403).json({ error: 'Unauthorized' });
     }
 
@@ -34,13 +35,13 @@ app.post('/announcements', (req, res) => {
         createdAt: new Date().toISOString()
     };
 
-    announcements.unshift(newAnnouncement); // Add to beginning
+    announcements.unshift(newAnnouncement);
     res.status(201).json(newAnnouncement);
 });
 
 // Delete announcement
 app.delete('/announcements/:id', (req, res) => {
-    if (req.headers['x-admin-key'] !== adminKey) {
+    if (req.headers['x-admin-key'] !== ADMIN_KEY) {
         return res.status(403).json({ error: 'Unauthorized' });
     }
 
@@ -50,4 +51,4 @@ app.delete('/announcements/:id', (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+app.listen(PORT, () => console.log(`Announcement API running on port ${PORT}`));
