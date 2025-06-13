@@ -8,7 +8,7 @@ app.use(bodyParser.json());
 
 // Simple database (replace with real DB in production)
 let announcements = [];
-let adminKey = process.env.ADMIN_KEY || "your-secret-key-123";
+let adminKey = process.env.ADMIN_KEY || "secretsex9";
 
 // Get all announcements
 app.get('/announcements', (req, res) => {
