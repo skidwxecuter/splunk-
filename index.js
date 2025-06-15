@@ -9,15 +9,14 @@ app.use(cors());
 app.use(bodyParser.json());
 app.use(express.static('public'));
 
-// Ensure public folder exists
+// Directories & JSON for saving links
 const publicDir = path.join(process.cwd(), 'public');
 if (!fs.existsSync(publicDir)) fs.mkdirSync(publicDir);
 
-// Ensure redirects.json exists
 const dbPath = path.join(publicDir, 'redirects.json');
 if (!fs.existsSync(dbPath)) fs.writeFileSync(dbPath, JSON.stringify([]));
 
-// Create new redirect
+// Create redirect file & store in JSON
 app.post('/create-redirect', (req, res) => {
   const { targetUrl, siteName } = req.body;
 
@@ -40,71 +39,31 @@ app.post('/create-redirect', (req, res) => {
   const filePath = path.join(publicDir, `${siteName}.html`);
   fs.writeFileSync(filePath, html);
 
-  // Update DB
+  // Add to redirects.json
   let list = [];
-  try { list = JSON.parse(fs.readFileSync(dbPath, 'utf-8')); } catch {}
+  try {
+    list = JSON.parse(fs.readFileSync(dbPath, 'utf-8'));
+  } catch {}
+
   list.unshift({
     name: siteName,
     url: `/${siteName}.html`,
     created: new Date().toISOString()
   });
+
   fs.writeFileSync(dbPath, JSON.stringify(list, null, 2));
 
   res.json({ url: `/${siteName}.html` });
 });
 
-// Serve list in HTML
-app.get('/', (req, res) => {
+// Provide JSON list to frontend
+app.get('/api/list', (req, res) => {
   const list = JSON.parse(fs.readFileSync(dbPath, 'utf-8'));
-  const linksHtml = list.map(item =>
-    `<li><a href="${item.url}" target="_blank">${item.url}</a> — ${new Date(item.created).toLocaleString()}</li>`
-  ).join('\n');
-
-  const page = `
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <title>Redirect Maker</title>
-</head>
-<body>
-  <h1>Make a Redirect</h1>
-  <input id="name" placeholder="Site name" />
-  <input id="url" placeholder="Target URL" />
-  <button id="make">Create</button>
-  <p id="result"></p>
-
-  <h2>Recent Links</h2>
-  <ul id="list">${linksHtml}</ul>
-
-  <script>
-    const backend = '';
-    document.getElementById('make').onclick = async () => {
-      const name = document.getElementById('name').value.trim();
-      const url = document.getElementById('url').value.trim();
-      const result = document.getElementById('result');
-      if (!name || !url) {
-        result.textContent = 'Fill in both fields!';
-        return;
-      }
-      const res = await fetch('/create-redirect', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ siteName: name, targetUrl: url })
-      });
-      const data = await res.json();
-      if (data.url) {
-        result.innerHTML = \`✅ Created: <a href="\${data.url}" target="_blank">\${location.origin + data.url}</a>\`;
-        location.reload(); // Reload to show updated list
-      } else {
-        result.textContent = data.error || 'Error';
-      }
-    };
-  </script>
-</body>
-</html>
-  `;
-  res.send(page);
+  res.json(list);
 });
 
+// Serve frontend (index.html) from public/
+app.use(express.static('public'));
+
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`✅ Running on port ${PORT}`));
+app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
