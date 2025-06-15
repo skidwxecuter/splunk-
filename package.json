@@ -1,7 +1,6 @@
 {
-  "name": "redirect-generator",
+  "name": "redirect-maker",
   "version": "1.0.0",
-  "description": "A self-hosted permanent redirect generator with a live link list",
   "main": "index.js",
   "type": "module",
   "scripts": {
