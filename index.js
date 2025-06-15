@@ -7,31 +7,31 @@ import fetch from 'node-fetch';
 const app = express();
 app.use(bodyParser.json());
 
-// ✅ Hardcoded Netlify Token (private use only!)
+// ✅ Hardcoded Netlify Token (private only)
 const NETLIFY_TOKEN = "nfp_exfPrWZf8cEqTysL2gDHZ4Xy45XgLpi714c3";
 
-// Allow CORS for your frontend (important!)
+// Allow CORS for frontend
 app.use((req, res, next) => {
-  res.header("Access-Control-Allow-Origin", "*"); // Or restrict to your frontend URL
+  res.header("Access-Control-Allow-Origin", "*");
   res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
   next();
 });
 
-// API endpoint to create redirect site
+// Endpoint
 app.post('/create-redirect', async (req, res) => {
-  const { targetUrl, siteName } = req.body;
+  const { targetUrl, siteName, pageTitle } = req.body;
 
   if (!targetUrl) {
     return res.status(400).json({ error: 'Missing target URL' });
   }
 
-  // Create the redirect HTML file
+  // ✅ Use custom page title or default fallback
   const html = `
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta http-equiv="refresh" content="0; url=${targetUrl}" />
-  <title>Redirecting...</title>
+  <title>${pageTitle || 'Redirecting...'}</title>
 </head>
 <body>
   <p>If you are not redirected, <a href="${targetUrl}">click here</a>.</p>
@@ -39,7 +39,7 @@ app.post('/create-redirect', async (req, res) => {
 </html>`;
 
   try {
-    // 1. Create a new Netlify site
+    // 1. Create new Netlify site
     const siteResp = await fetch('https://api.netlify.com/api/v1/sites', {
       method: 'POST',
       headers: {
@@ -47,17 +47,16 @@ app.post('/create-redirect', async (req, res) => {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        name: siteName || undefined  // Optional custom name
+        name: siteName || undefined
       })
     });
 
     const siteData = await siteResp.json();
-
     if (!siteResp.ok) {
       return res.status(500).json({ error: 'Failed to create site', details: siteData });
     }
 
-    // 2. Deploy the redirect HTML
+    // 2. Deploy the single index.html only
     const deployResp = await fetch(`https://api.netlify.com/api/v1/sites/${siteData.id}/deploys`, {
       method: 'POST',
       headers: {
@@ -72,7 +71,6 @@ app.post('/create-redirect', async (req, res) => {
     });
 
     const deployData = await deployResp.json();
-
     if (!deployResp.ok) {
       return res.status(500).json({ error: 'Failed to deploy', details: deployData });
     }
@@ -88,6 +86,5 @@ app.post('/create-redirect', async (req, res) => {
   }
 });
 
-// Start server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
