@@ -1,54 +1,76 @@
-// server.js
-const express = require('express');
-const cors = require('cors');
-const bodyParser = require('body-parser');
+// index.js
+
+import express from 'express';
+import bodyParser from 'body-parser';
+import fetch from 'node-fetch';
+import fs from 'fs';
+import path from 'path';
 
 const app = express();
-app.use(cors());
 app.use(bodyParser.json());
 
-// In-memory storage (replace with database in production)
-let announcements = [];
-const ADMIN_KEY = process.env.ADMIN_KEY || "nigger233";
+// Replace with your Netlify team/site defaults if you want
+const NETLIFY_TOKEN = process.env.NETLIFY_TOKEN;
 
-// Get all announcements
-app.get('/announcements', (req, res) => {
-    res.json(announcements);
-});
+app.post('/create-redirect', async (req, res) => {
+  const { targetUrl, siteName } = req.body;
 
-// Create new announcement
-app.post('/announcements', (req, res) => {
-    if (req.headers['x-admin-key'] !== ADMIN_KEY) {
-        return res.status(403).json({ error: 'Unauthorized' });
-    }
+  if (!targetUrl) {
+    return res.status(400).json({ error: 'Missing target URL' });
+  }
 
-    const { title, message, isUrgent } = req.body;
-    if (!title || !message) {
-        return res.status(400).json({ error: 'Title and message required' });
-    }
+  // Create redirect HTML
+  const html = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta http-equiv="refresh" content="0; url=${targetUrl}" />
+  <title>Redirecting...</title>
+</head>
+<body>
+  <p>If you are not redirected, <a href="${targetUrl}">click here</a>.</p>
+</body>
+</html>`;
 
-    const newAnnouncement = {
-        id: Date.now(),
-        title,
-        message,
-        isUrgent: Boolean(isUrgent),
-        createdAt: new Date().toISOString()
-    };
+  // Use Netlify Deploy API
+  const deployUrl = 'https://api.netlify.com/api/v1/sites';
 
-    announcements.unshift(newAnnouncement);
-    res.status(201).json(newAnnouncement);
-});
+  // 1. Create new site
+  const siteResp = await fetch(deployUrl, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${NETLIFY_TOKEN}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      name: siteName || undefined  // optional custom name
+    })
+  });
 
-// Delete announcement
-app.delete('/announcements/:id', (req, res) => {
-    if (req.headers['x-admin-key'] !== ADMIN_KEY) {
-        return res.status(403).json({ error: 'Unauthorized' });
-    }
+  const siteData = await siteResp.json();
+  const siteId = siteData.id;
 
-    const id = parseInt(req.params.id);
-    announcements = announcements.filter(a => a.id !== id);
-    res.status(204).send();
+  // 2. Deploy the file
+  const deployResp = await fetch(`https://api.netlify.com/api/v1/sites/${siteId}/deploys`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${NETLIFY_TOKEN}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      files: {
+        'index.html': html
+      }
+    })
+  });
+
+  const deployData = await deployResp.json();
+
+  return res.json({
+    siteUrl: siteData.url,
+    deployUrl: deployData.deploy_ssl_url
+  });
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Announcement API running on port ${PORT}`));
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
