@@ -9,13 +9,15 @@ app.use(cors());
 app.use(bodyParser.json());
 app.use(express.static('public'));
 
+// Make sure public dir exists
 const publicDir = path.join(process.cwd(), 'public');
 if (!fs.existsSync(publicDir)) fs.mkdirSync(publicDir);
 
+// Make sure JSON file exists
 const dbPath = path.join(publicDir, 'redirects.json');
 if (!fs.existsSync(dbPath)) fs.writeFileSync(dbPath, JSON.stringify([]));
 
-// Helper: random code generator
+// Helper: random code
 function generateCode(length = 8) {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
   let code = '';
@@ -25,7 +27,7 @@ function generateCode(length = 8) {
   return code;
 }
 
-// Create redirect file with random code
+// Create redirect
 app.post('/create-redirect', (req, res) => {
   const { targetUrl } = req.body;
 
@@ -33,7 +35,6 @@ app.post('/create-redirect', (req, res) => {
     return res.status(400).json({ error: 'Missing target URL' });
   }
 
-  // Generate unique code
   const code = generateCode();
   const filename = `${code}.html`;
 
@@ -49,10 +50,11 @@ app.post('/create-redirect', (req, res) => {
 </body>
 </html>`;
 
+  // Save file
   const filePath = path.join(publicDir, filename);
   fs.writeFileSync(filePath, html);
 
-  // Add to JSON db
+  // Update JSON
   let list = [];
   try {
     list = JSON.parse(fs.readFileSync(dbPath, 'utf-8'));
@@ -69,14 +71,17 @@ app.post('/create-redirect', (req, res) => {
   res.json({ url: `/${filename}`, code: code });
 });
 
-// Provide JSON list
+// Serve the list API
 app.get('/api/list', (req, res) => {
-  const list = JSON.parse(fs.readFileSync(dbPath, 'utf-8'));
+  let list = [];
+  try {
+    list = JSON.parse(fs.readFileSync(dbPath, 'utf-8'));
+  } catch {}
   res.json(list);
 });
 
-// Serve static
+// Serve frontend
 app.use(express.static('public'));
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
+app.listen(PORT, () => console.log(`✅ Server on port ${PORT}`));
