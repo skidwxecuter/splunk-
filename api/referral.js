@@ -1,39 +1,38 @@
-// api/referral.js
-let users = {}; // In-memory store (resets if redeployed)
+let users = {}; // in-memory storage (resets on redeploy, use DB for permanent)
 
-export default async function handler(req, res) {
+export default function handler(req, res) {
   if (req.method === "POST") {
-    const { action, username } = req.body;
+    const { username } = req.body;
 
     if (!username) {
       return res.status(400).json({ error: "Username required" });
     }
-
-    if (action === "register") {
-      if (!users[username]) {
-        users[username] = { referrals: 0 };
-      }
-      return res.status(200).json({ message: "User registered", user: users[username] });
+    if (users[username]) {
+      return res.status(400).json({ error: "Username already exists" });
     }
 
-    if (action === "addReferral") {
-      if (!users[username]) {
-        users[username] = { referrals: 0 };
-      }
-      users[username].referrals += 1;
-      return res.status(200).json({ message: "Referral added", user: users[username] });
-    }
-
-    return res.status(400).json({ error: "Invalid action" });
+    users[username] = { referrals: 0 };
+    return res.status(200).json({ message: "Registered", username });
   }
 
   if (req.method === "GET") {
+    const { ref } = req.query;
+
+    if (ref) {
+      if (!users[ref]) {
+        return res.status(404).json({ error: "Referrer not found" });
+      }
+      users[ref].referrals++;
+      return res.status(200).json({ message: "Referral counted", ref });
+    }
+
+    // leaderboard
     const leaderboard = Object.entries(users)
-      .map(([username, data]) => ({ username, referrals: data.referrals }))
+      .map(([u, d]) => ({ username: u, referrals: d.referrals }))
       .sort((a, b) => b.referrals - a.referrals);
 
-    return res.status(200).json(leaderboard);
+    return res.status(200).json({ leaderboard });
   }
 
   res.status(405).json({ error: "Method not allowed" });
-                                   }
+}
