@@ -5,77 +5,81 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Referral System</title>
   <style>
-    body { font-family: Arial, sans-serif; padding: 20px; text-align: center; }
-    input, button { padding: 10px; margin: 5px; }
-    code { background: #eee; padding: 3px 6px; border-radius: 5px; }
+    body { font-family: Arial, sans-serif; background: #f4f4f4; text-align: center; }
+    .box { background: white; padding: 20px; margin: 50px auto; width: 400px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+    input, button { padding: 10px; margin: 10px; border-radius: 6px; border: 1px solid #ccc; width: 90%; max-width: 300px; }
+    button { background: #007bff; color: white; border: none; cursor: pointer; }
+    button:hover { background: #0056b3; }
+    #leaderboard p { margin: 5px 0; }
   </style>
 </head>
 <body>
+  <!-- Normal dashboard -->
+  <div class="box" id="dashboard">
+    <h2>Referral System</h2>
+    <input id="username" placeholder="Enter Discord username">
+    <button onclick="register()">Register</button>
+    <p id="myLink"></p>
+    <h3>Leaderboard</h3>
+    <div id="leaderboard"></div>
+  </div>
+
+  <!-- Referral redirect screen -->
+  <div class="box" id="redirectBox" style="display:none;">
+    <h2>Redirecting to Discord server…</h2>
+    <p id="refText"></p>
+    <p>You’ll be redirected shortly.</p>
+  </div>
+
 <script>
-const urlParams = new URLSearchParams(window.location.search);
-const ref = urlParams.get("ref");
-const page = urlParams.get("page");
+  const API = "/api/referrals"; // backend API route
 
-if (ref) {
-  // Referral redirect page
-  document.body.innerHTML = `
-    <h1>Redirecting...</h1>
-    <p>You were invited by <b>${ref}</b>. Joining server...</p>
-  `;
+  async function register() {
+    const username = document.getElementById("username").value.trim();
+    if (!username) return alert("Enter a username");
 
-  // Call backend to add referral
-  fetch("/api/referral", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ action: "addReferral", username: ref })
-  }).then(() => {
-    // Redirect to your Discord server
+    const res = await fetch(API, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username })
+    });
+    const data = await res.json();
+    if (data.error) return alert(data.error);
+
+    document.getElementById("myLink").innerText =
+      "Your referral link: " + window.location.origin + "?ref=" + encodeURIComponent(username);
+
+    loadLeaderboard();
+  }
+
+  async function loadLeaderboard() {
+    const res = await fetch(API);
+    const data = await res.json();
+    document.getElementById("leaderboard").innerHTML =
+      data.leaderboard.map((u, i) => `<p>${i+1}. ${u.username} — ${u.referrals} referrals</p>`).join("");
+  }
+
+  async function checkReferral() {
+    const params = new URLSearchParams(window.location.search);
+    const ref = params.get("ref");
+    if (!ref) return;
+
+    // Hide dashboard, show redirect screen
+    document.getElementById("dashboard").style.display = "none";
+    document.getElementById("redirectBox").style.display = "block";
+    document.getElementById("refText").innerText = `Referral credited to: ${ref}`;
+
+    // Count referral
+    await fetch(API + "?ref=" + encodeURIComponent(ref));
+
+    // Redirect after 3 seconds
     setTimeout(() => {
       window.location.href = "https://discord.gg/GbKza47fxB";
     }, 3000);
-  });
+  }
 
-} else if (page === "leaderboard") {
-  // Leaderboard page
-  document.body.innerHTML = `<h1>Leaderboard</h1><div id="board"></div>`;
-  fetch("/api/referral")
-    .then(r => r.json())
-    .then(data => {
-      let html = "";
-      data.forEach((u, i) => {
-        html += `<p>#${i+1} ${u.username} — ${u.referrals} referrals</p>`;
-      });
-      document.getElementById("board").innerHTML = html || "No data yet.";
-    });
-
-} else {
-  // Default homepage/dashboard
-  document.body.innerHTML = `
-    <h1>Referral Dashboard</h1>
-    <form id="registerForm">
-      <input type="text" id="username" placeholder="Enter Discord Username">
-      <button type="submit">Register</button>
-    </form>
-    <div id="status"></div>
-    <p><a href="?page=leaderboard">View Leaderboard</a></p>
-  `;
-
-  document.getElementById("registerForm").onsubmit = async (e) => {
-    e.preventDefault();
-    const username = document.getElementById("username").value.trim();
-    if (!username) return alert("Enter a username!");
-
-    const res = await fetch("/api/referral", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "register", username })
-    });
-    const data = await res.json();
-
-    document.getElementById("status").innerHTML =
-      `✅ Registered!<br>Your referral link:<br><code>${window.location.origin}/?ref=${username}</code>`;
-  };
-}
+  loadLeaderboard();
+  checkReferral();
 </script>
 </body>
 </html>
