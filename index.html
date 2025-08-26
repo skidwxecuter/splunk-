@@ -1,75 +1,72 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="UTF-8">
   <title>Referral System</title>
   <style>
-    body { font-family: Arial, sans-serif; text-align: center; padding: 20px; }
-    input, button { padding: 10px; margin: 10px; font-size: 16px; }
-    #leaderboard { margin-top: 30px; }
-    table { width: 50%; margin: auto; border-collapse: collapse; }
-    th, td { border: 1px solid #ddd; padding: 8px; }
+    body { font-family: Arial; background: #111; color: #fff; text-align: center; }
+    input, button { padding: 10px; margin: 5px; }
+    .card { background: #222; padding: 20px; margin: 10px auto; border-radius: 10px; width: 400px; }
   </style>
 </head>
 <body>
   <h1>Referral System</h1>
-  <p>Enter your Discord username (example: Whate#2332)</p>
-  <input type="text" id="username" placeholder="Your Discord username">
-  <button onclick="register()">Register</button>
 
-  <p id="refLink"></p>
-  <p id="stats"></p>
+  <!-- Register username -->
+  <div class="card">
+    <h2>Register</h2>
+    <input id="username" placeholder="Enter your Discord username">
+    <button onclick="registerUser()">Register</button>
+    <p id="refLink"></p>
+  </div>
 
-  <h2>Leaderboard</h2>
-  <div id="leaderboard"></div>
+  <!-- Leaderboard -->
+  <div class="card">
+    <h2>Leaderboard</h2>
+    <button onclick="loadLeaderboard()">Refresh Leaderboard</button>
+    <ul id="leaderboard"></ul>
+  </div>
 
-<script>
-  const baseURL = window.location.origin; // same Vercel project
+  <script>
+    const backend = "https://index-html-gamma-flax.vercel.app/"; // change to your deployed backend
 
-  async function register() {
-    const username = document.getElementById("username").value;
-    if (!username) return alert("Enter your username!");
+    // Register
+    async function registerUser() {
+      const username = document.getElementById("username").value;
+      if (!username) return alert("Enter username!");
 
-    const res = await fetch(baseURL + "/api/register", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username })
-    });
-    const data = await res.json();
-
-    if (data.error) return alert(data.error);
-
-    document.getElementById("refLink").innerText =
-      "Your referral link: " + baseURL + "/?ref=" + encodeURIComponent(username);
-
-    updateStats(username);
-    loadLeaderboard();
-  }
-
-  async function updateStats(username) {
-    const res = await fetch(baseURL + "/api/leaderboard");
-    const all = await res.json();
-    const user = all.find(u => u.user === username);
-    if (user) {
-      document.getElementById("stats").innerText =
-        "Total Referrals: " + user.referrals;
+      const res = await fetch(backend, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "register", username })
+      });
+      const data = await res.json();
+      document.getElementById("refLink").innerText =
+        "Your referral link: " + window.location.origin + "/?ref=" + username;
     }
-  }
 
-  async function loadLeaderboard() {
-    const res = await fetch(baseURL + "/api/leaderboard");
-    const data = await res.json();
+    // Load leaderboard
+    async function loadLeaderboard() {
+      const res = await fetch(backend);
+      const data = await res.json();
+      const lb = document.getElementById("leaderboard");
+      lb.innerHTML = "";
+      data.forEach(user => {
+        const li = document.createElement("li");
+        li.innerText = user.username + " — " + user.referrals + " referrals";
+        lb.appendChild(li);
+      });
+    }
 
-    let html = "<table><tr><th>User</th><th>Referrals</th></tr>";
-    data.forEach(row => {
-      html += `<tr><td>${row.user}</td><td>${row.referrals}</td></tr>`;
-    });
-    html += "</table>";
-
-    document.getElementById("leaderboard").innerHTML = html;
-  }
-
-  loadLeaderboard();
-</script>
+    // Catch referral ?ref= in URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const ref = urlParams.get("ref");
+    if (ref) {
+      fetch(backend, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "addReferral", username: ref })
+      });
+    }
+  </script>
 </body>
 </html>
