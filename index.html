@@ -1,85 +1,169 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Referral System</title>
   <style>
-    body { font-family: Arial, sans-serif; background: #f4f4f4; text-align: center; }
-    .box { background: white; padding: 20px; margin: 50px auto; width: 400px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
-    input, button { padding: 10px; margin: 10px; border-radius: 6px; border: 1px solid #ccc; width: 90%; max-width: 300px; }
-    button { background: #007bff; color: white; border: none; cursor: pointer; }
-    button:hover { background: #0056b3; }
-    #leaderboard p { margin: 5px 0; }
+    body { font-family: Inter, Arial, sans-serif; background:#f3f6fb; color:#222; margin:0; display:flex; align-items:center; justify-content:center; min-height:100vh; }
+    .card { width: 420px; background:#fff; border-radius:12px; box-shadow:0 10px 30px rgba(15,23,42,0.08); padding:24px; }
+    h1 { margin:0 0 12px 0; font-size:20px; }
+    input, button { width:100%; padding:10px 12px; margin-top:8px; border-radius:8px; border:1px solid #e6eef8; box-sizing:border-box; }
+    button { background:#5865F2; color:#fff; border:none; cursor:pointer; font-weight:600; }
+    .muted { color:#667085; font-size:14px; margin-top:8px; }
+    code { background:#f1f5f9; padding:6px 8px; border-radius:6px; display:block; margin-top:10px; text-align:center; }
+    .center { text-align:center; }
   </style>
 </head>
 <body>
-  <!-- Normal dashboard -->
-  <div class="box" id="dashboard">
-    <h2>Referral System</h2>
-    <input id="username" placeholder="Enter Discord username">
-    <button onclick="register()">Register</button>
-    <p id="myLink"></p>
-    <h3>Leaderboard</h3>
-    <div id="leaderboard"></div>
-  </div>
-
-  <!-- Referral redirect screen -->
-  <div class="box" id="redirectBox" style="display:none;">
-    <h2>Redirecting to Discord server…</h2>
-    <p id="refText"></p>
-    <p>You’ll be redirected shortly.</p>
+  <div class="card" id="app">
+    <!-- content injected by JS -->
   </div>
 
 <script>
-  const API = "/api/referrals"; // backend API route
+const API_BASE = "/api/referrals"; // same-site serverless route
+const app = document.getElementById("app");
 
-  async function register() {
-    const username = document.getElementById("username").value.trim();
-    if (!username) return alert("Enter a username");
+// generate device id once per browser and store in localStorage
+function getDeviceId() {
+  let id = localStorage.getItem("deviceId");
+  if (!id) {
+    id = Math.random().toString(36).slice(2,10) + "-" + Date.now().toString(36);
+    localStorage.setItem("deviceId", id);
+  }
+  return id;
+}
 
-    const res = await fetch(API, {
+async function showLeaderboard() {
+  app.innerHTML = "<h1>Leaderboard</h1><div class='muted'>Loading...</div>";
+  try {
+    const r = await fetch(API_BASE);
+    const data = await r.json();
+    const list = data.leaderboard || [];
+    if (!list.length) {
+      app.innerHTML = "<h1>Leaderboard</h1><p class='muted center'>No referrals yet.</p>";
+      return;
+    }
+    app.innerHTML = "<h1>Leaderboard</h1>";
+    list.forEach((u, i) => {
+      const p = document.createElement("p");
+      p.innerHTML = `<strong>#${i+1}</strong> ${u.username} — <b>${u.referrals}</b> joins`;
+      app.appendChild(p);
+    });
+    const back = document.createElement("p"); back.className="muted center"; back.innerHTML = `<a href="/">Go back</a>`;
+    app.appendChild(back);
+  } catch (err) {
+    app.innerHTML = "<h1>Leaderboard</h1><p class='muted'>Failed to load.</p>";
+    console.error(err);
+  }
+}
+
+function renderRegister() {
+  app.innerHTML = `
+    <h1>Get your referral link</h1>
+    <input id="username" placeholder="Discord username (e.g. Whate#2332)" />
+    <button id="btn">Register</button>
+    <p class="muted center">After registering you’ll get a shareable link.</p>
+    <div id="result"></div>
+    <p class="muted center"><a href="?page=leaderboard">View leaderboard</a></p>
+  `;
+  document.getElementById("btn").onclick = register;
+}
+
+async function register() {
+  const username = (document.getElementById("username").value || "").trim();
+  if (!username) return alert("Please enter a username.");
+
+  try {
+    const r = await fetch(API_BASE, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username })
+      body: JSON.stringify({ action: "register", username })
     });
-    const data = await res.json();
-    if (data.error) return alert(data.error);
+    const data = await r.json();
+    if (!r.ok) {
+      alert(data.error || "Failed to register");
+      return;
+    }
+    document.getElementById("result").innerHTML = `
+      <div class="center">
+        ✅ Registered<br>
+        <code>${window.location.origin}/?ref=${encodeURIComponent(username)}</code>
+      </div>
+    `;
+    loadLeaderboardSmall();
+  } catch (err) {
+    console.error(err);
+    alert("Network error. Check console.");
+  }
+}
 
-    document.getElementById("myLink").innerText =
-      "Your referral link: " + window.location.origin + "?ref=" + encodeURIComponent(username);
+// small leaderboard box underneath register
+async function loadLeaderboardSmall() {
+  try {
+    const r = await fetch(API_BASE);
+    const d = await r.json();
+    const list = d.leaderboard || [];
+    const out = list.slice(0,5).map((u,i) => `${i+1}. ${u.username} — ${u.referrals}`).join("<br>") || "<span class='muted'>No referrals</span>";
+    const el = document.createElement("div");
+    el.className = "muted center";
+    el.style.marginTop = "14px";
+    el.innerHTML = `<strong>Top</strong><br>${out}`;
+    // replace existing small leaderboard
+    const old = document.querySelector("#app > .muted.center");
+    if (old) old.remove();
+    app.appendChild(el);
+  } catch(e) { /* ignore */ }
+}
 
-    loadLeaderboard();
+// when someone visits with ?ref=Name
+async function handleReferralPage(ref) {
+  app.innerHTML = `
+    <h1>Redirecting…</h1>
+    <p class="muted center">You were invited by <strong>${ref}</strong></p>
+    <p class="muted center">Redirecting to Discord server now. If not redirected, <a id="manlink">click here</a>.</p>
+  `;
+  document.getElementById("manlink").href = "https://discord.gg/GbKza47fxB";
+
+  // call backend to count referral; pass device id so same device won't count twice
+  try {
+    const device = getDeviceId();
+    const url = `${API_BASE}?ref=${encodeURIComponent(ref)}&device=${encodeURIComponent(device)}`;
+    const r = await fetch(url, { method: "GET" });
+    const data = await r.json();
+    if (!r.ok) {
+      // show reason but still redirect
+      const p = document.createElement("p"); p.className = "muted center"; p.textContent = data.error || "Referral not counted";
+      app.appendChild(p);
+    } else {
+      const p = document.createElement("p"); p.className = "muted center"; p.textContent = "Referral counted! Thanks.";
+      app.appendChild(p);
+    }
+  } catch (err) {
+    console.error(err);
   }
 
-  async function loadLeaderboard() {
-    const res = await fetch(API);
-    const data = await res.json();
-    document.getElementById("leaderboard").innerHTML =
-      data.leaderboard.map((u, i) => `<p>${i+1}. ${u.username} — ${u.referrals} referrals</p>`).join("");
+  setTimeout(() => {
+    window.location.href = "https://discord.gg/GbKza47fxB";
+  }, 2500);
+}
+
+// init: route by query params
+(function init() {
+  const params = new URLSearchParams(window.location.search);
+  const ref = params.get("ref");
+  const page = params.get("page");
+  if (ref) {
+    handleReferralPage(ref);
+    return;
   }
-
-  async function checkReferral() {
-    const params = new URLSearchParams(window.location.search);
-    const ref = params.get("ref");
-    if (!ref) return;
-
-    // Hide dashboard, show redirect screen
-    document.getElementById("dashboard").style.display = "none";
-    document.getElementById("redirectBox").style.display = "block";
-    document.getElementById("refText").innerText = `Referral credited to: ${ref}`;
-
-    // Count referral
-    await fetch(API + "?ref=" + encodeURIComponent(ref));
-
-    // Redirect after 3 seconds
-    setTimeout(() => {
-      window.location.href = "https://discord.gg/GbKza47fxB";
-    }, 3000);
+  if (page === "leaderboard") {
+    showLeaderboard();
+    return;
   }
-
-  loadLeaderboard();
-  checkReferral();
+  renderRegister();
+  loadLeaderboardSmall();
+})();
 </script>
 </body>
 </html>
