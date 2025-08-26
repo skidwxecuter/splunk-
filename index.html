@@ -1,72 +1,81 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Referral System</title>
   <style>
-    body { font-family: Arial; background: #111; color: #fff; text-align: center; }
+    body { font-family: Arial, sans-serif; padding: 20px; text-align: center; }
     input, button { padding: 10px; margin: 5px; }
-    .card { background: #222; padding: 20px; margin: 10px auto; border-radius: 10px; width: 400px; }
+    code { background: #eee; padding: 3px 6px; border-radius: 5px; }
   </style>
 </head>
 <body>
-  <h1>Referral System</h1>
+<script>
+const urlParams = new URLSearchParams(window.location.search);
+const ref = urlParams.get("ref");
+const page = urlParams.get("page");
 
-  <!-- Register username -->
-  <div class="card">
-    <h2>Register</h2>
-    <input id="username" placeholder="Enter your Discord username">
-    <button onclick="registerUser()">Register</button>
-    <p id="refLink"></p>
-  </div>
+if (ref) {
+  // Referral redirect page
+  document.body.innerHTML = `
+    <h1>Redirecting...</h1>
+    <p>You were invited by <b>${ref}</b>. Joining server...</p>
+  `;
 
-  <!-- Leaderboard -->
-  <div class="card">
-    <h2>Leaderboard</h2>
-    <button onclick="loadLeaderboard()">Refresh Leaderboard</button>
-    <ul id="leaderboard"></ul>
-  </div>
+  // Call backend to add referral
+  fetch("/api/referral", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "addReferral", username: ref })
+  }).then(() => {
+    // Redirect to your Discord server
+    setTimeout(() => {
+      window.location.href = "https://discord.gg/GbKza47fxB";
+    }, 3000);
+  });
 
-  <script>
-    const backend = "https://splunkapi.vercel.app/"; // change to your deployed backend
-
-    // Register
-    async function registerUser() {
-      const username = document.getElementById("username").value;
-      if (!username) return alert("Enter username!");
-
-      const res = await fetch(backend, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "register", username })
+} else if (page === "leaderboard") {
+  // Leaderboard page
+  document.body.innerHTML = `<h1>Leaderboard</h1><div id="board"></div>`;
+  fetch("/api/referral")
+    .then(r => r.json())
+    .then(data => {
+      let html = "";
+      data.forEach((u, i) => {
+        html += `<p>#${i+1} ${u.username} — ${u.referrals} referrals</p>`;
       });
-      const data = await res.json();
-      document.getElementById("refLink").innerText =
-        "Your referral link: " + window.location.origin + "/?ref=" + username;
-    }
+      document.getElementById("board").innerHTML = html || "No data yet.";
+    });
 
-    // Load leaderboard
-    async function loadLeaderboard() {
-      const res = await fetch(backend);
-      const data = await res.json();
-      const lb = document.getElementById("leaderboard");
-      lb.innerHTML = "";
-      data.forEach(user => {
-        const li = document.createElement("li");
-        li.innerText = user.username + " — " + user.referrals + " referrals";
-        lb.appendChild(li);
-      });
-    }
+} else {
+  // Default homepage/dashboard
+  document.body.innerHTML = `
+    <h1>Referral Dashboard</h1>
+    <form id="registerForm">
+      <input type="text" id="username" placeholder="Enter Discord Username">
+      <button type="submit">Register</button>
+    </form>
+    <div id="status"></div>
+    <p><a href="?page=leaderboard">View Leaderboard</a></p>
+  `;
 
-    // Catch referral ?ref= in URL
-    const urlParams = new URLSearchParams(window.location.search);
-    const ref = urlParams.get("ref");
-    if (ref) {
-      fetch(backend, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "addReferral", username: ref })
-      });
-    }
-  </script>
+  document.getElementById("registerForm").onsubmit = async (e) => {
+    e.preventDefault();
+    const username = document.getElementById("username").value.trim();
+    if (!username) return alert("Enter a username!");
+
+    const res = await fetch("/api/referral", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "register", username })
+    });
+    const data = await res.json();
+
+    document.getElementById("status").innerHTML =
+      `✅ Registered!<br>Your referral link:<br><code>${window.location.origin}/?ref=${username}</code>`;
+  };
+}
+</script>
 </body>
 </html>
